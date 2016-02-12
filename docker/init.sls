@@ -16,7 +16,10 @@ docker package dependencies:
 {%- if grains["oscodename"]|lower == 'jessie' %}
 docker package repository:
   pkgrepo.managed:
-    - name: deb http://http.debian.net/debian jessie-backports main
+    - name: deb https://apt.dockerproject.org/repo debian-jessie main
+    - humanname: Docker Debian Repository
+    - keyid: 58118E89F3A912897C070ADBF76221572C52609D
+    - keyserver: pool.sks-keyservers.net
 {%- else %}
 {%- if "version" in docker and docker.version < '1.7.1' %}
 docker package repository:
@@ -51,10 +54,7 @@ docker package repository:
 docker package:
   {%- if "version" in docker %}
   pkg.installed:
-    {%- if grains["oscodename"]|lower == 'jessie' %}
-    - name: docker.io
-    - version: {{ docker.version }}
-    {%- elif  docker.version < '1.7.1' %}
+    {%- if  docker.version < '1.7.1' %}
     - name: lxc-docker-{{ docker.version }}
     {%- else %}
     - name: docker-engine
@@ -62,11 +62,7 @@ docker package:
     {%- endif %}
   {%- else %}
   pkg.latest:
-    {%- if grains["oscodename"]|lower == 'jessie' %}
-    - name: docker.io
-    {%- else %}
     - name: docker-engine
-    {%- endif %}
   {%- endif %}
     - refresh: {{ docker.refresh_repo }}
     - require:
