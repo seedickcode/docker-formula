@@ -9,7 +9,8 @@ compose-pip:
 
 compose:
   pip.installed:
+    {%- if "version" in compose %}
     - name: docker-compose == {{ compose.version }}
-    - require:
-      - pip: compose-pip
-    - reload_modules: true
+    {%- else %}
+    - name: docker-compose
+    {%- endif %}

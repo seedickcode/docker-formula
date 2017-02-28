@@ -10,18 +10,26 @@ docker package dependencies:
       - apt-transport-https
       - iptables
       - ca-certificates
-      - lxc
       - python-apt
 
-{%- if grains["oscodename"]|lower == 'jessie' %}
+{%- if grains["oscodename"]|lower == 'jessie' and "version" not in docker%}
 docker package repository:
   pkgrepo.managed:
-    - name: deb https://apt.dockerproject.org/repo debian-jessie main
-    - humanname: Docker Debian Repository
-    - keyid: 58118E89F3A912897C070ADBF76221572C52609D
-    - keyserver: pool.sks-keyservers.net
+    - name: deb http://http.debian.net/debian jessie-backports main
 {%- else %}
-{%- if "version" in docker and docker.version < '1.7.1' %}
+  {%- if "version" in docker %}
+    {%- if (docker.version|string).startswith('1.7.') %}
+      {%- set use_old_repo = docker.version < '1.7.1' %}
+    {%- else %}
+      {%- set version_major = (docker.version|string).split('.')[0]|int %}
+      {%- set version_minor = (docker.version|string).split('.')[1]|int %}
+      {%- set old_repo_major = 1 %}
+      {%- set old_repo_minor = 7 %}
+      {%- set use_old_repo = (version_major < old_repo_major or (version_major == old_repo_major and version_minor < old_repo_minor)) %}
+    {%- endif %}
+  {%- endif %}
+
+{%- if "version" in docker and use_old_repo %}
 docker package repository:
   pkgrepo.managed:
     - name: deb https://get.docker.com/ubuntu docker main
@@ -32,7 +40,9 @@ purge old packages:
   pkgrepo.absent:
     - name: deb https://get.docker.com/ubuntu docker main
   pkg.purged:
-    - name: lxc-docker*
+    - pkgs: 
+      - lxc-docker*
+      - docker.io*
     - require_in:
       - pkgrepo: docker package repository
 
@@ -42,7 +52,7 @@ docker package repository:
     - humanname: {{ grains["os"] }} {{ grains["oscodename"]|capitalize }} Docker Package Repository
     - keyid: 58118E89F3A912897C070ADBF76221572C52609D
 {%- endif %}
-    - keyserver: keyserver.ubuntu.com
+    - keyserver: hkp://p80.pool.sks-keyservers.net:80
     - file: /etc/apt/sources.list.d/docker.list
     - refresh_db: True
 {%- endif %}
@@ -54,15 +64,23 @@ docker package repository:
 docker package:
   {%- if "version" in docker %}
   pkg.installed:
-    {%- if  docker.version < '1.7.1' %}
+    {%- if grains["oscodename"]|lower == 'jessie' and "version" not in docker %}
+    - name: docker.io
+    - version: {{ docker.version }}
+    {%- elif use_old_repo %}
     - name: lxc-docker-{{ docker.version }}
     {%- else %}
     - name: docker-engine
     - version: {{ docker.version }}
     {%- endif %}
+    - hold: True
   {%- else %}
   pkg.latest:
+    {%- if grains["oscodename"]|lower == 'jessie' and "version" not in docker %}
+    - name: docker.io
+    {%- else %}
     - name: docker-engine
+    {%- endif %}
   {%- endif %}
     - refresh: {{ docker.refresh_repo }}
     - require:
@@ -95,8 +113,12 @@ docker-py requirements:
   pkg.installed:
     - name: python-pip
   pip.installed:
+    {%- if "pip" in docker and "version" in docker.pip %}
+    - name: pip {{ docker.pip.version }}
+    {%- else %}
     - name: pip
     - upgrade: True
+    {%- endif %}
 
 docker-py:
   pip.installed:
@@ -105,8 +127,5 @@ docker-py:
     {%- else %}
     - name: docker-py
     {%- endif %}
-    - require:
-      - pkg: docker package
-      - pip: docker-py requirements
-    - reload_modules: True
+    - reload_modules: true
 {% endif %}
